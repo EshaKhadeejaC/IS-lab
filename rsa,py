@@ -1,0 +1,105 @@
+import hashlib
+import random
+
+def sha256_hash(input_string):
+    return hashlib.sha256(input_string.encode('utf-8')).hexdigest()
+
+def gcd(a, b):
+    while b != 0:
+        a, b = b, a % b
+    return a
+
+def mod_inverse(e, phi):
+    d = 0
+    x1, x2 = 0, 1
+    y1, y2 = 1, 0
+    temp_phi = phi
+    while e > 0:
+        temp1 = temp_phi // e
+        temp2 = temp_phi - temp1 * e
+        temp_phi, e = e, temp2 
+        x = x2 - temp1 * x1
+        y = y2 - temp1 * y1
+        x2, x1 = x1, x
+        y2, y1 = y1, y
+    if temp_phi == 1:
+        d = y2 % phi
+    return d
+
+def is_prime(n, k=5):
+    if n <= 1:
+        return False
+    for p in [2, 3, 5, 7, 11]:
+        if n % p == 0:
+            return n == p
+    s, d = 0, n - 1
+    while d % 2 == 0:
+        s += 1
+        d //= 2
+    for _ in range(k):
+        a = random.randrange(2, n - 1)
+        x = pow(a, d, n)
+        if x == 1 or x == n - 1:
+            continue
+        for __ in range(s - 1):
+            x = pow(x, 2, n)
+            if x == n - 1:
+                break
+        else:
+            return False
+    return True
+
+def generate_large_prime(bit_length):
+    while True:
+        candidate = random.getrandbits(bit_length)
+        candidate |= (1 << (bit_length - 1)) | 1  # Ensure odd and set MSB
+        if is_prime(candidate):
+            return candidate
+
+def generate_rsa_keys():
+    # Use 512-bit primes for a 1024-bit modulus (large enough for SHA-256)
+    p = generate_large_prime(256)  # 256-bit prime
+    q = generate_large_prime(256)  # 256-bit prime
+    n = p * q  # 512-bit modulus
+    phi = (p - 1) * (q - 1)
+    e = 65537  # Common choice for public exponent
+    while gcd(e, phi) != 1:
+        e = generate_large_prime(17)  # Small prime for e
+    d = mod_inverse(e, phi)
+    
+    return (e,n), (d, n)
+
+def rsa_encrypt(message, private_key):
+    e, n = private_key
+    return pow(message, e, n)
+
+def rsa_decrypt(encrypted_msg, public_key):
+    d, n = public_key
+    return pow(encrypted_msg, d, n)
+
+def sign_message(message, private_key):
+    hash_value = int(sha256_hash(message), 16)
+    signature = rsa_encrypt(hash_value, private_key)
+    return hash_value, signature
+
+def verify_signature(message, signature, public_key):
+    decrypted_signature = rsa_decrypt(signature, public_key)
+    hash_value = int(sha256_hash(message), 16)
+    return decrypted_signature == hash_value
+
+if _name_ == "_main_":
+    public_key, private_key = generate_rsa_keys()
+    print("Public Key (e, n):", public_key)
+    print("Private Key (d, n):", private_key)
+
+    message = input("Enter a message to sign: ")
+    hash_value, signature = sign_message(message, private_key)
+    print(f"Hash (H1): {hex(hash_value)}")
+    print(f"Signature (S1): {signature}")
+
+    verify_message = input("Enter the message to verify: ")
+    is_verified = verify_signature(verify_message, signature, public_key)
+    print(f"Decrypted Signature (S2): {hex(rsa_decrypt(signature, public_key))}")
+    print(f"Recomputed Hash (H2): {hex(int(sha256_hash(verify_message), 16))}")
+
+    print("Verification Successful: S2 == H2" if is_verified else "Verification Failed: S2 != H2")
